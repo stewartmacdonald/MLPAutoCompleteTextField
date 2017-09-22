@@ -42,20 +42,7 @@ not the original data source.
        withAutoCompleteObject:(id<MLPAutoCompletionObject>)selectedObject
             forRowAtIndexPath:(NSIndexPath *)indexPath;
 
-
 - (void)autoCompleteTextField:(MLPAutoCompleteTextField *)textField
 willShowAutoCompleteTableView:(UITableView *)autoCompleteTableView;
-
-- (void)autoCompleteTextField:(MLPAutoCompleteTextField *)textField
-didShowAutoCompleteTableView:(UITableView *)autoCompleteTableView;
-
-- (void)autoCompleteTextField:(MLPAutoCompleteTextField *)textField
- willHideAutoCompleteTableView:(UITableView *)autoCompleteTableView;
-
-- (void)autoCompleteTextField:(MLPAutoCompleteTextField *)textField
-didHideAutoCompleteTableView:(UITableView *)autoCompleteTableView;
-
-- (void)autoCompleteTextField:(MLPAutoCompleteTextField *)textField
- didChangeNumberOfSuggestions:(NSInteger)numberOfSuggestions;
 
 @end
