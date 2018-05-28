@@ -279,8 +279,8 @@ withAutoCompleteString:(NSString *)string
         }
     }
     
-    [cell.textLabel setTextColor:self.textColor];
-	
+	cell.textLabel.textColor = self.textColor;
+	cell.detailTextLabel.textColor = self.textColor;
 	cell.detailTextLabel.text = subtitle;
 	
 	
@@ -1021,6 +1021,7 @@ withAutoCompleteString:(NSString *)string
     }
 	
 	inputString = [inputString lowercaseString];
+	//inputString = [inputString stringByReplacingOccurrencesOfString:@"-" withString:@" "];
 	
     NSMutableArray *editDistances = [NSMutableArray arrayWithCapacity:possibleTerms.count];
 	
@@ -1041,11 +1042,14 @@ withAutoCompleteString:(NSString *)string
 		
         NSString *currentString;
 		NSString *subtitleString = nil;
-		if ([originalObject isKindOfClass:[NSString class]]){
+		if ([originalObject isKindOfClass:[NSString class]]) {
             currentString = (NSString*)originalObject;
-		} else if ([originalObject isKindOfClass:[NSDictionary class]]){
+			
+		} else if ([originalObject isKindOfClass:[NSDictionary class]]) {
 			currentString	= [(NSDictionary*)originalObject objectForKey:@"title"];
 			subtitleString	= [(NSDictionary*)originalObject objectForKey:@"subtitle"];
+			
+			//subtitleString = [subtitleString stringByReplacingOccurrencesOfString:@"-" withString:@" "];
 			
 			NSNumber *tempPriority = (NSNumber*)[(NSDictionary*)originalObject objectForKey:@"priority"];
 			if (tempPriority) {
@@ -1054,6 +1058,7 @@ withAutoCompleteString:(NSString *)string
 			
 		} else if ([originalObject conformsToProtocol:@protocol(MLPAutoCompletionObject)]){
             currentString = [(id <MLPAutoCompletionObject>)originalObject autocompleteString];
+			
         } else {
             NSAssert(0, @"Autocompletion terms must either be strings, dictionaries, or objects conforming to the MLPAutoCompleteObject protocol.");
         }
@@ -1086,7 +1091,7 @@ withAutoCompleteString:(NSString *)string
 			NSUInteger maximumRange = (inputString.length < thisChunk.length) ? inputString.length : thisChunk.length;
 			float sciNameLDistance = [[inputString lowercaseString] asciiLevenshteinDistanceWithString:[[thisChunk substringWithRange:NSMakeRange(0, maximumRange)] lowercaseString]];
 			
-			//DLog(@"LDist of inputString to %@ is %.0f", [thisChunk substringWithRange:NSMakeRange(0, maximumRange)], sciNameLDistance);
+			//DLog(@"LDist of inputString (sciName) to %@ is %.0f", [thisChunk substringWithRange:NSMakeRange(0, maximumRange)], sciNameLDistance);
 			
 			editDistanceOfCurrentStringTitle = fminf(sciNameLDistance, editDistanceOfCurrentStringTitle);
 			
@@ -1105,13 +1110,36 @@ withAutoCompleteString:(NSString *)string
 															kSortPriorityKey: priority
 															};
 		
-		
+		// Check subtitles
 		float editDistanceOfCurrentStringSubtitle = MAXFLOAT;
 		NSDictionary *stringsWithEditDistancesForSubtitle = nil;
 		if (subtitleString && [subtitleString isKindOfClass:[NSString class]]) {
 			
+			// Does this common name have a space in it?
+			
+			NSArray *comNameChunks = [subtitleString componentsSeparatedByString:@" "];
+			
+//			if ([inputString rangeOfString:@" "].location != NSNotFound) {
+//				comNameChunks = @[subtitleString];
+//			}
+
+			for (NSString *thisComNameChunk in comNameChunks) {
+
+				NSUInteger maximumRange = (inputString.length < thisComNameChunk.length) ? inputString.length : thisComNameChunk.length;
+				float comNameLDistance = [[inputString lowercaseString] asciiLevenshteinDistanceWithString:[[thisComNameChunk substringWithRange:NSMakeRange(0, maximumRange)] lowercaseString]];
+
+				//DLog(@"LDist of inputString (%@) to comName %@ is %.0f", inputString,
+					// [thisComNameChunk substringWithRange:NSMakeRange(0, maximumRange)],
+					 //comNameLDistance);
+
+				editDistanceOfCurrentStringSubtitle = fminf(comNameLDistance, editDistanceOfCurrentStringSubtitle);
+
+			}
+			/*
 			NSUInteger maximumRange = (inputString.length < subtitleString.length) ? inputString.length : subtitleString.length;
 			editDistanceOfCurrentStringSubtitle = [inputString asciiLevenshteinDistanceWithString:[subtitleString substringWithRange:NSMakeRange(0, maximumRange)]];
+			
+			*/
 			
 			stringsWithEditDistancesForSubtitle = @{
 													kSortInputStringKey: subtitleString,
@@ -1161,7 +1189,7 @@ withAutoCompleteString:(NSString *)string
 		
     }
 	
-    if(self.isCancelled){
+    if (self.isCancelled) {
         return [NSArray array];
     }
 	
