@@ -189,7 +189,7 @@ static NSString *kDefaultAutoCompleteCellIdentifier = @"_DefaultAutoCompleteCell
 {
     NSInteger numberOfRows = [self.autoCompleteSuggestions count];
     [self expandAutoCompleteTableViewForNumberOfRows:numberOfRows];
-    return self.maximumNumberOfAutoCompleteRows;
+    return MIN(self.autoCompleteSuggestions.count, self.maximumNumberOfAutoCompleteRows);
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
@@ -257,13 +257,20 @@ withAutoCompleteString:(NSString *)string
 		subtitle = [stringChunks lastObject];
 	}
 	
-    NSAttributedString *boldedString = nil;
-    if(self.applyBoldEffectToAutoCompleteSuggestions){
-        BOOL attributedTextSupport = [cell.textLabel respondsToSelector:@selector(setAttributedText:)];
-        NSAssert(attributedTextSupport, @"Attributed strings on UILabels are  not supported before iOS 6.0");
-        NSRange boldedRange = [[string lowercaseString]
-                               rangeOfString:[self.text lowercaseString]];
-        boldedString = [self boldedString:string withRange:boldedRange];
+    NSAttributedString *boldedTitle = nil;
+	NSAttributedString *boldedSubtitle = nil;
+    if (self.applyBoldEffectToAutoCompleteSuggestions) {
+		BOOL attributedTextSupport = [cell.textLabel respondsToSelector:@selector(setAttributedText:)];
+        NSAssert(attributedTextSupport, @"Attributed strings on UILabels are not supported before iOS 6.0");
+		
+		// Title
+		NSRange boldedRange = [[string lowercaseString] rangeOfString:[self.text lowercaseString]];
+        boldedTitle = [self boldedString:string withRange:boldedRange italics:YES];
+		
+		// Subtitle
+		boldedRange = [[subtitle lowercaseString] rangeOfString:[self.text lowercaseString]];
+		boldedSubtitle = [self boldedString:subtitle withRange:boldedRange italics:NO];
+
     }
     
     id autoCompleteObject = self.autoCompleteSuggestions[indexPath.row];
@@ -271,34 +278,43 @@ withAutoCompleteString:(NSString *)string
         autoCompleteObject = nil;
     }
     
-    if([self.autoCompleteDelegate respondsToSelector:@selector(autoCompleteTextField:shouldConfigureCell:withAutoCompleteString:withAttributedString:forAutoCompleteObject:forRowAtIndexPath:)])
-    {
-        if(![self.autoCompleteDelegate autoCompleteTextField:self shouldConfigureCell:cell withAutoCompleteString:string withAttributedString:boldedString forAutoCompleteObject:autoCompleteObject forRowAtIndexPath:indexPath])
-        {
+    if ([self.autoCompleteDelegate respondsToSelector:@selector(autoCompleteTextField:shouldConfigureCell:withAutoCompleteString:withAttributedString:forAutoCompleteObject:forRowAtIndexPath:)]) {
+        if (![self.autoCompleteDelegate autoCompleteTextField:self shouldConfigureCell:cell withAutoCompleteString:string withAttributedString:boldedTitle forAutoCompleteObject:autoCompleteObject forRowAtIndexPath:indexPath]) {
             return;
         }
     }
     
 	cell.textLabel.textColor = self.textColor;
 	cell.detailTextLabel.textColor = self.textColor;
-	cell.detailTextLabel.text = subtitle;
 	
-	
-    if(boldedString){
+	// title
+    if (boldedTitle){
         if ([cell.textLabel respondsToSelector:@selector(setAttributedText:)]) {
-            [cell.textLabel setAttributedText:boldedString];
+            [cell.textLabel setAttributedText:boldedTitle];
         } else{
             [cell.textLabel setText:string];
             [cell.textLabel setFont:[UIFont fontWithName:self.font.fontName size:self.autoCompleteFontSize]];
         }
-    
     } else {
         [cell.textLabel setText:string];
-		
         [cell.textLabel setFont:[UIFont fontWithName:self.font.fontName size:self.autoCompleteFontSize]];
     }
-    
-    if(self.autoCompleteTableCellTextColor){
+	
+	// Subtitle
+	cell.detailTextLabel.font = [UIFont systemFontOfSize:12.0];
+	if (boldedSubtitle){
+		if ([cell.detailTextLabel respondsToSelector:@selector(setAttributedText:)]) {
+			[cell.detailTextLabel setAttributedText:boldedSubtitle];
+		} else{
+			[cell.detailTextLabel setText:subtitle];
+			//[cell.detailTextLabel setFont:[UIFont fontWithName:self.font.fontName size:self.autoCompleteFontSize]];
+		}
+	} else {
+		[cell.detailTextLabel setText:subtitle];
+		//[cell.detailTextLabel setFont:[UIFont fontWithName:self.font.fontName size:self.autoCompleteFontSize]];
+	}
+	
+    if (self.autoCompleteTableCellTextColor){
         [cell.textLabel setTextColor:self.autoCompleteTableCellTextColor];
     }
 	
@@ -460,19 +476,16 @@ withAutoCompleteString:(NSString *)string
     if(numberOfRows && (self.autoCompleteTableViewHidden == NO)){
         [self.autoCompleteTableView setAlpha:1];
         
-        if(!self.autoCompleteTableView.superview){
-            if([self.autoCompleteDelegate
-                respondsToSelector:@selector(autoCompleteTextField:willShowAutoCompleteTableView:)]){
-                [self.autoCompleteDelegate autoCompleteTextField:self
-                                   willShowAutoCompleteTableView:self.autoCompleteTableView];
+        if (!self.autoCompleteTableView.superview) {
+            if ([self.autoCompleteDelegate respondsToSelector:@selector(autoCompleteTextField:willShowAutoCompleteTableView:)]) {
+                [self.autoCompleteDelegate autoCompleteTextField:self willShowAutoCompleteTableView:self.autoCompleteTableView];
             }
         }
         
         [self.superview bringSubviewToFront:self];
-        [self.superview insertSubview:self.autoCompleteTableView
-                         belowSubview:self];
+        [self.superview insertSubview:self.autoCompleteTableView belowSubview:self];
         [self.autoCompleteTableView setUserInteractionEnabled:YES];
-        if(self.showTextFieldDropShadowWhenAutoCompleteTableIsOpen){
+        if (self.showTextFieldDropShadowWhenAutoCompleteTableIsOpen) {
             [self.layer setShadowColor:[[UIColor blackColor] CGColor]];
             [self.layer setShadowOffset:CGSizeMake(0, 1)];
             [self.layer setShadowOpacity:0.35];
@@ -811,13 +824,18 @@ withAutoCompleteString:(NSString *)string
 {
     CGFloat maximumHeightMultiplier = (textField.maximumNumberOfAutoCompleteRows - 0.5);
     CGFloat heightMultiplier;
-    if(numberOfRows >= textField.maximumNumberOfAutoCompleteRows){
+    if (numberOfRows >= textField.maximumNumberOfAutoCompleteRows) {
         heightMultiplier = maximumHeightMultiplier;
     } else {
         heightMultiplier = numberOfRows;
     }
     
     CGFloat height = textField.autoCompleteRowHeight * heightMultiplier;
+	
+	// Can't use self in a class method
+	// height = height - self.keyboardHeight;
+	// height = 100.0f;
+	
     return height;
 }
 
@@ -832,19 +850,52 @@ withAutoCompleteString:(NSString *)string
     return frame;
 }
 
-- (NSAttributedString *)boldedString:(NSString *)string withRange:(NSRange)boldRange
-{
-    UIFont *boldFont = [UIFont fontWithName:self.autoCompleteBoldFontName
-                                       size:self.autoCompleteFontSize];
-    UIFont *regularFont = [UIFont fontWithName:self.autoCompleteRegularFontName
-                                          size:self.autoCompleteFontSize];
-    
+- (NSAttributedString *)boldedString:(NSString *)string withRange:(NSRange)boldRange italics:(BOOL)italics {
+	
+	//italics = YES;
+	
+	UIFont *boldFont = [UIFont fontWithName:self.autoCompleteBoldFontName
+												  size:self.autoCompleteFontSize];
+	UIFont *regularFont = [UIFont fontWithName:self.autoCompleteRegularFontName
+										  size:self.autoCompleteFontSize];
+	
+	if (italics) {
+		// Do nothing
+		
+	} else {
+		// Remove italics from both fonts
+		
+		UIFontDescriptor *originalDescriptorReg = [regularFont fontDescriptor];
+		UIFontDescriptor *nonItalicDescriptorReg = [originalDescriptorReg fontDescriptorWithSymbolicTraits:(originalDescriptorReg.symbolicTraits & ~UIFontDescriptorTraitItalic)];
+		regularFont = [UIFont fontWithDescriptor:nonItalicDescriptorReg size:self.autoCompleteFontSize];
+
+		
+		
+		
+		
+		UIFontDescriptor *originalDescriptorBold = [regularFont fontDescriptor];
+		UIFontDescriptor *nonItalicDescriptorBold = [originalDescriptorBold fontDescriptorWithSymbolicTraits:(originalDescriptorBold.symbolicTraits & ~UIFontDescriptorTraitItalic)];
+		//nonItalicDescriptorBold = [nonItalicDescriptorBold fontDescriptorWithSymbolicTraits:(nonItalicDescriptorBold.symbolicTraits & ~UIFontDescriptorTraitItalic)];
+		nonItalicDescriptorBold = [nonItalicDescriptorBold fontDescriptorWithSymbolicTraits:(nonItalicDescriptorBold.symbolicTraits | UIFontDescriptorTraitBold)];
+		
+//		UIFontDescriptorSymbolicTraits traits = [boldFont fontDescriptor].symbolicTraits;
+//		traits = traits | UIFontDescriptorTraitBold;
+//		traits = traits & ~UIFontDescriptorTraitItalic;
+//		nonItalicDescriptorBold = [nonItalicDescriptorBold fontDescriptorWithSymbolicTraits:traits];
+		
+		//UIFontDescriptor *nonItalicDescriptorBold = originalDescriptorBold; //[originalDescriptorBold fontDescriptorWithSymbolicTraits:originalDescriptorBold.symbolicTraits];
+		boldFont = [UIFont fontWithDescriptor:nonItalicDescriptorBold size:self.autoCompleteFontSize];
+		
+		
+	}
+	
+	
     NSDictionary *boldTextAttributes = @{NSFontAttributeName : boldFont};
     NSDictionary *regularTextAttributes = @{NSFontAttributeName : regularFont};
     NSDictionary *firstAttributes;
     NSDictionary *secondAttributes;
     
-    if(self.reverseAutoCompleteSuggestionsBoldEffect){
+    if (self.reverseAutoCompleteSuggestionsBoldEffect){
         firstAttributes = regularTextAttributes;
         secondAttributes = boldTextAttributes;
     } else {
@@ -1010,6 +1061,7 @@ withAutoCompleteString:(NSString *)string
     return self;
 }
 
+#pragma mark - Here's where it all happens
 - (NSArray *)sortedCompletionsForString:(NSString *)inputString withPossibleStrings:(NSArray *)possibleTerms
 {
     if ([inputString isEqualToString:@""]) {
@@ -1035,6 +1087,7 @@ withAutoCompleteString:(NSString *)string
 //		DLog(@"possibleTerm: %@ - %@", [thisDict objectForKey:@"title"], [thisDict objectForKey:@"subtitle"]);
 //	}
 
+	BOOL haveLogged = NO;
 	
     for (NSObject *originalObject in possibleTerms) {
 		
@@ -1071,18 +1124,27 @@ withAutoCompleteString:(NSString *)string
 		
 		BOOL ignoreGenusSuggestions = NO;
 		if ([inputString componentsSeparatedByString:@" "].count > 1) {
-			//DLog(@"'%@' has a space", inputString);
-			if ([priority integerValue] == 10) {
+			if (!haveLogged) {
+				DLog(@"inputString '%@' has a space", inputString);
+			}
+			if ([priority integerValue] == 10) { // 10 is the priority for genera
 				ignoreGenusSuggestions = YES;
-				//DLog(@"Skipping %@ because we have a space and this is a genus", inputString);
+				if (!haveLogged) {
+					DLog(@"Skipping %@ because we have a space and this is a genus", inputString);
+				}
 				continue;
 			}
 		}
+		
+		// Need some way to ignore anything that does not start with this genus name
+		
+		
 		
 		float editDistanceOfCurrentStringTitle = MAXFLOAT;
 		
 		// If input string has a space in it, don't search our possible suggestions word-by-word
 		if ([inputString rangeOfString:@" "].location != NSNotFound) {
+			// inputString has a space
 			sciNameChunks = @[currentString];
 		}
 		
@@ -1091,7 +1153,9 @@ withAutoCompleteString:(NSString *)string
 			NSUInteger maximumRange = (inputString.length < thisChunk.length) ? inputString.length : thisChunk.length;
 			float sciNameLDistance = [[inputString lowercaseString] asciiLevenshteinDistanceWithString:[[thisChunk substringWithRange:NSMakeRange(0, maximumRange)] lowercaseString]];
 			
+			//if (sciNameLDistance < 2) {
 			//DLog(@"LDist of inputString (sciName) to %@ is %.0f", [thisChunk substringWithRange:NSMakeRange(0, maximumRange)], sciNameLDistance);
+			//}
 			
 			editDistanceOfCurrentStringTitle = fminf(sciNameLDistance, editDistanceOfCurrentStringTitle);
 			
@@ -1110,7 +1174,7 @@ withAutoCompleteString:(NSString *)string
 															kSortPriorityKey: priority
 															};
 		
-		// Check subtitles
+		// Check subtitles/common names
 		float editDistanceOfCurrentStringSubtitle = MAXFLOAT;
 		NSDictionary *stringsWithEditDistancesForSubtitle = nil;
 		if (subtitleString && [subtitleString isKindOfClass:[NSString class]]) {
@@ -1118,6 +1182,12 @@ withAutoCompleteString:(NSString *)string
 			// Does this common name have a space in it?
 			
 			NSArray *comNameChunks = [subtitleString componentsSeparatedByString:@" "];
+			
+			// If input string has a space, don't search our common names word by word
+			if ([inputString rangeOfString:@" "].location != NSNotFound) {
+				// inputString has a space
+				comNameChunks = @[subtitleString];
+			}
 			
 //			if ([inputString rangeOfString:@" "].location != NSNotFound) {
 //				comNameChunks = @[subtitleString];
@@ -1132,6 +1202,8 @@ withAutoCompleteString:(NSString *)string
 					// [thisComNameChunk substringWithRange:NSMakeRange(0, maximumRange)],
 					 //comNameLDistance);
 
+				//DLog(@"LDist of inputString (comName) to %@ is %.0f", [thisComNameChunk substringWithRange:NSMakeRange(0, maximumRange)], comNameLDistance);
+				
 				editDistanceOfCurrentStringSubtitle = fminf(comNameLDistance, editDistanceOfCurrentStringSubtitle);
 
 			}
@@ -1187,6 +1259,8 @@ withAutoCompleteString:(NSString *)string
 			[editDistances addObject:stringsWithEditDistancesForTitle];
 		}
 		
+		haveLogged = YES;
+		
     }
 	
     if (self.isCancelled) {
@@ -1228,11 +1302,14 @@ withAutoCompleteString:(NSString *)string
     
         NSArray *suggestedStringComponents = [suggestedString componentsSeparatedByString:@" "];
         BOOL suggestedStringDeservesPriority = NO;
-        for(NSString *component in suggestedStringComponents){
-            NSRange occurrenceOfInputString = [[component lowercaseString]
-                                            rangeOfString:[inputString lowercaseString]];
+        for (NSString *component in suggestedStringComponents){
+            NSRange occurrenceOfInputString = [[component lowercaseString] rangeOfString:[[inputString stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]] lowercaseString]];
             
-            if (occurrenceOfInputString.length != 0 && occurrenceOfInputString.location == 0) {
+           // if (occurrenceOfInputString.length != 0 && occurrenceOfInputString.location == 0) {
+			if (occurrenceOfInputString.location == NSNotFound) {
+				// Not found
+				//DLog(@"NOT priority. component: '%@'; inputString: '%@'; suggestedString: '%@'", component, inputString, suggestedString);
+			} else {
                 suggestedStringDeservesPriority = YES;
                 [prioritySuggestions addObject:autoCompleteObject];
 				//DLog(@"adding priority %@", suggestedString);
@@ -1255,10 +1332,15 @@ withAutoCompleteString:(NSString *)string
         }
 
     }
-    
+	//DLog(@"prioritySuggestions (n=%ld): %@", (long)prioritySuggestions.count, prioritySuggestions);
+	//DLog(@"otherSuggestions (n=%ld): %@", (long)otherSuggestions.count, otherSuggestions);
+	
+	
     NSMutableArray *results = [NSMutableArray array];
     [results addObjectsFromArray:prioritySuggestions];
-    [results addObjectsFromArray:otherSuggestions];
+	if (prioritySuggestions.count < 20) {
+    	[results addObjectsFromArray:otherSuggestions];
+	}
 	
 	//DLog(@"results: %@", [results subarrayWithRange:NSMakeRange(0, 10)]);
 	//DLog(@"results: %@", results);
@@ -1277,7 +1359,7 @@ withAutoCompleteString:(NSString *)string
 
 - (BOOL)textFieldShouldReturn:(UITextField *)textField {
 	
-	NSLog(@"[MLPAutoCompleteField] textFieldShouldReturn] return");
+	//NSLog(@"[MLPAutoCompleteField textFieldShouldReturn] return");
 	
 	[textField resignFirstResponder];
 	

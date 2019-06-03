@@ -29,6 +29,7 @@
 @interface MLPAutoCompleteTextField : UITextField <UITableViewDataSource, UITableViewDelegate, MLPAutoCompleteSortOperationDelegate, MLPAutoCompleteFetchOperationDelegate>
 
 @property (strong, readonly) UITableView *autoCompleteTableView;
+@property (nonatomic) CGFloat keyboardHeight;
 
 @property (strong) IBOutlet id <MLPAutoCompleteTextFieldDataSource> autoCompleteDataSource;
 @property (weak) IBOutlet id <MLPAutoCompleteTextFieldDelegate> autoCompleteDelegate;
